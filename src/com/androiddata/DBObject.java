@@ -1,7 +1,12 @@
 package com.androiddata;
 
+import java.lang.Object;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
+
+import android.content.ContentValues;
+import android.database.Cursor;
 
 public class DBObject {
 
@@ -11,6 +16,43 @@ public class DBObject {
     private static final String BOOL_TYPE = " INTEGER";
     private static final String DATE_TYPE = " BIGINT";
 
+    public DBObject() { }
+
+    public DBObject(Cursor c){
+        Field[] allFields = this.getClass().getFields();
+
+        for(Field f : allFields)
+        {
+            DBColumn dbf = f.getAnnotation(DBColumn.class);
+            if(dbf != null)
+            {
+                try {
+                    Object val = null;
+
+                    switch(dbf.dataType())
+                    {
+                        case TEXT:
+                            val = c.getString(c.getColumnIndex(dbf.columnName()));
+                            break;
+                        case INTEGER:
+                            val = c.getInt(c.getColumnIndex(dbf.columnName()));
+                            break;
+                        case BOOL:
+                            val = c.getInt(c.getColumnIndex(dbf.columnName())) == 1;
+                        default:
+                            break;
+                    }
+
+                    f.set(this, val);
+                } catch (IllegalArgumentException e) {
+                    e.printStackTrace();
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
     public ArrayList<DBColumn> getColumns(){
         ArrayList<DBColumn> retVal = new ArrayList<DBColumn>();
         Field[] allFields = this.getClass().getFields();
@@ -19,6 +61,15 @@ public class DBObject {
             if(dbf != null){
                 retVal.add(dbf);
             }
+        }
+        return retVal;
+    }
+
+    public String[] getColumnNames() {
+        ArrayList<DBColumn> cols = getColumns();
+        String[] retVal = new String[cols.size()];
+        for(int i = 0; i < cols.size(); i++){
+            retVal[i] = cols.get(i).columnName();
         }
         return retVal;
     }
@@ -38,7 +89,7 @@ public class DBObject {
 
         for(DBColumn col : getColumns()){
             sb.append(", ");
-            sb.append(col.columName());
+            sb.append(col.columnName());
             switch (col.dataType()) {
                 case INTEGER:
                     sb.append(INT_TYPE);
@@ -61,4 +112,54 @@ public class DBObject {
         return "DROP TABLE IF EXISTS " + getTableName();
     }
 
+    protected ContentValues getContentValues()
+    {
+        ContentValues retVal = new ContentValues();
+
+        Field[] allFields = this.getClass().getFields();
+
+        for(Field f : allFields)
+        {
+            DBColumn dbc =  f.getAnnotation(DBColumn.class);
+            if(dbc != null)
+            {
+                try {
+                    Object o = f.get(this);
+                    if(o != null)
+                    {
+                        switch(dbc.dataType()) {
+                            case BOOL:
+                                if((Boolean) o)
+                                    retVal.put(dbc.columnName(), "1");
+                                else
+                                    retVal.put(dbc.columnName(), "0");
+                                break;
+                            default:
+                                retVal.put(dbc.columnName(), o.toString());
+                                break;
+                        }
+                    }
+                } catch (IllegalArgumentException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                } catch (IllegalAccessException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        return retVal;
+    }
+
+
+    public boolean insert(android.database.sqlite.SQLiteDatabase db){
+        ContentValues values = getContentValues();
+        db.insert(getTableName(), null, values);
+        return true;
+    }
+
+    public void deleteAll(android.database.sqlite.SQLiteDatabase db){
+        db.execSQL("delete from " + getTableName());
+    }
 }

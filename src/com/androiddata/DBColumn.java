@@ -16,7 +16,7 @@ public @interface DBColumn
         BOOL
     }
 
-    String columName();
+    String columnName();
     DataType dataType () default DataType.TEXT;
 }
 
