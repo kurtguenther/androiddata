@@ -4,11 +4,22 @@ import java.lang.Object;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 
 import android.content.ContentValues;
 import android.database.Cursor;
 
 public class DBObject {
+
+    public static HashMap<Class, DBObjectCache> globalCache = new HashMap<Class, DBObjectCache>();
+
+    public static DBObjectCache getObjectCache(Class c){
+        if(!globalCache.containsKey(c)){
+            globalCache.put(c, DBObjectCache.make(c));
+        }
+        return globalCache.get(c);
+    }
+
 
     //Some SQL constants
     private static final String TEXT_TYPE = " TEXT";
@@ -19,11 +30,12 @@ public class DBObject {
     public DBObject() { }
 
     public DBObject(Cursor c){
-        Field[] allFields = this.getClass().getFields();
+        //Get the mappings for this class
+        DBObjectCache cache = getObjectCache(this.getClass());
 
-        for(Field f : allFields)
+        for(Field f : cache.maps.keySet())
         {
-            DBColumn dbf = f.getAnnotation(DBColumn.class);
+            DBColumn dbf = cache.maps.get(f);
             if(dbf != null)
             {
                 try {
@@ -116,11 +128,14 @@ public class DBObject {
     {
         ContentValues retVal = new ContentValues();
 
-        Field[] allFields = this.getClass().getFields();
+        DBObjectCache cache = getObjectCache(this.getClass());
 
-        for(Field f : allFields)
+        //Field[] allFields = this.getClass().getFields();
+
+        for(Field f : cache.maps.keySet())
         {
-            DBColumn dbc =  f.getAnnotation(DBColumn.class);
+            //DBColumn dbc =  f.getAnnotation(DBColumn.class);
+            DBColumn dbc =  cache.maps.get(f);
             if(dbc != null)
             {
                 try {
